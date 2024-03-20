@@ -1,6 +1,6 @@
-using System.Collections.Generic;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 
 namespace login.Filters
 {
@@ -8,31 +8,38 @@ namespace login.Filters
     {
         public void OnActionExecuted(ActionExecutedContext context)
         {
-            if (context.Result is ObjectResult objectResult && objectResult.StatusCode == 400)
-            {
+            var result = context.Result as IStatusCodeActionResult;
+            if(result == null) { 
+                return; 
+            }
+
+            var statusCode = result.StatusCode;
+            if(statusCode == 400) {
                 var response = new List<string>();
-                if (objectResult.Value is string)
+                var badRequestObjectResult = context.Result as BadRequestObjectResult;
+                
+                if (badRequestObjectResult.Value is string) 
                 {
-                    response.Add(objectResult.Value.ToString());
-                }
-                else
+                    response.Add(badRequestObjectResult.Value.ToString());
+                } 
+                else 
                 {
-                    foreach (var key in context.ModelState.Keys)
+                    foreach(var key in context.ModelState.Keys) 
                     {
-                        foreach (var error in context.ModelState[key].Errors)
+                        foreach(var error in context.ModelState[key].Errors) 
                         {
                             response.Add($"{key}: {error.ErrorMessage}");
                         }
                     }
+                    
+                    context.Result = new BadRequestObjectResult(response);
                 }
-
-                context.Result = new BadRequestObjectResult(response);
             }
         }
 
         public void OnActionExecuting(ActionExecutingContext context)
         {
-            // Se necessário, adicione lógica para execução antes da ação
+            // if necessary implement it here
         }
     }
 }

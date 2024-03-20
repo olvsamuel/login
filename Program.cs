@@ -6,7 +6,7 @@ using System.Security.Claims;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.WebHost.ConfigureKestrel(options => options.ListenLocalhost(5000));
@@ -40,14 +40,14 @@ builder.Services.AddAuthentication(x =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = Settings.Issuer,
         ValidAudience = Settings.JWTAudience,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Settings.Secret.ToString())),
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(Settings.Secret.ToString())),
         ClockSkew = TimeSpan.Zero
     };
     x.Events = new JwtBearerEvents
     {
         OnTokenValidated = context =>
         {
-            var expiration = context.SecurityToken.ValidTo;
+            DateTime expiration = context.SecurityToken.ValidTo;
             // Console.WriteLine(context.SecurityToken);
             if (expiration < DateTime.UtcNow)
             {
@@ -77,7 +77,7 @@ builder.Services.AddCors(options => options.AddPolicy("MyPolicy", builder =>
 }));
 
 
-var app = builder.Build();
+WebApplication app = builder.Build();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
