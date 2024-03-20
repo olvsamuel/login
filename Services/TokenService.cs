@@ -7,21 +7,21 @@ using login.Models;
 
 public class TokenService
 {
-    private static byte[] _secretTKey = Encoding.UTF8.GetBytes(Settings.Secret.ToString());
-    private static byte[] _secretRTKey = Encoding.UTF8.GetBytes(Settings.RTSecret.ToString());
+    private static byte[] _secretTKey = Encoding.ASCII.GetBytes(Settings.Secret.ToString());
+    private static byte[] _secretRTKey = Encoding.ASCII.GetBytes(Settings.RTSecret.ToString());
 
     public static string GenerateToken(UserModel user)
     {
         int tokenDuration = 20;
-        var tokenHandler = new JwtSecurityTokenHandler();
+        JwtSecurityTokenHandler tokenHandler = new JwtSecurityTokenHandler();
 
-        var identityClaims = new ClaimsIdentity();
+        ClaimsIdentity identityClaims = new ClaimsIdentity();
         identityClaims.AddClaim(new Claim(ClaimTypes.PrimarySid, user.Id.ToString()));
         identityClaims.AddClaim(new Claim(ClaimTypes.Name, user.Name.ToString()));
         identityClaims.AddClaim(new Claim(ClaimTypes.Email, user.Email.ToString().Trim()));
 
 
-        var tokenDescriptor = new SecurityTokenDescriptor
+        SecurityTokenDescriptor tokenDescriptor = new SecurityTokenDescriptor
         {
             Issuer = Settings.Issuer,
             Audience = Settings.JWTAudience,
@@ -29,41 +29,45 @@ public class TokenService
             Subject = identityClaims,
             Expires = DateTime.UtcNow.AddSeconds(tokenDuration),
             SigningCredentials = new SigningCredentials(
-                new SymmetricSecurityKey(_secretTKey), 
+                new SymmetricSecurityKey(_secretTKey),
                 SecurityAlgorithms.HmacSha256Signature
             )
         };
-        var token = tokenHandler.CreateToken(tokenDescriptor);
+        SecurityToken token = tokenHandler.CreateToken(tokenDescriptor);
         return tokenHandler.WriteToken(token);
     }
 
     public static string GenerateTokenByClaims(IEnumerable<Claim> claims)
     {
+        // Session duration in seconds
         int tokenDuration = 20;
-        var tokenHandler = new JwtSecurityTokenHandler();
 
-        var tokenDescriptor = new SecurityTokenDescriptor
+        JwtSecurityTokenHandler tokenHandler = new JwtSecurityTokenHandler();
+
+        SecurityTokenDescriptor tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),
             Expires = DateTime.UtcNow.AddSeconds(tokenDuration),
             SigningCredentials = new SigningCredentials(
-                new SymmetricSecurityKey(_secretTKey), 
+                new SymmetricSecurityKey(_secretTKey),
                 SecurityAlgorithms.HmacSha256Signature
             )
         };
-        var token = tokenHandler.CreateToken(tokenDescriptor);
+        SecurityToken token = tokenHandler.CreateToken(tokenDescriptor);
+
         return tokenHandler.WriteToken(token);
     }
 
     public static string GenerateRefreshToken(long IdUsuer)
     {
+        // Session duration in seconds
         int tokenDuration = 3600;
 
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var identityClaims = new ClaimsIdentity();
+        JwtSecurityTokenHandler tokenHandler = new JwtSecurityTokenHandler();
+        ClaimsIdentity identityClaims = new ClaimsIdentity();
         identityClaims.AddClaim(new Claim(ClaimTypes.PrimarySid, IdUsuer.ToString()));
 
-        var tokenDescriptor = new SecurityTokenDescriptor
+        SecurityTokenDescriptor tokenDescriptor = new SecurityTokenDescriptor
         {
             Issuer = Settings.Issuer,
             Audience = Settings.JWTRAudience,
@@ -75,13 +79,14 @@ public class TokenService
             Subject = identityClaims,
             Expires = DateTime.UtcNow.AddSeconds(tokenDuration),
         };
-        var token = tokenHandler.CreateToken(tokenDescriptor);
+        SecurityToken token = tokenHandler.CreateToken(tokenDescriptor);
+
         return tokenHandler.WriteToken(token);
     }
 
     public static ClaimsPrincipal GetPrincipalFromExpiredToken(string token)
     {
-        var tokenValidationParameters = new TokenValidationParameters
+        TokenValidationParameters tokenValidationParameters = new TokenValidationParameters
         {
             ValidateAudience = false,
             ValidateIssuer = false,
@@ -90,11 +95,11 @@ public class TokenService
             ValidateLifetime = false
         };
 
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var principal = tokenHandler.ValidateToken(
-            token, 
-            tokenValidationParameters, 
-            out var securityToken
+        JwtSecurityTokenHandler tokenHandler = new JwtSecurityTokenHandler();
+        ClaimsPrincipal principal = tokenHandler.ValidateToken(
+            token,
+            tokenValidationParameters,
+            out SecurityToken securityToken
         );
         if (securityToken is not JwtSecurityToken jwtSecurityToken ||
             !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256,
@@ -104,16 +109,15 @@ public class TokenService
         return principal;
     }
 
-    public static bool ValidateRToken(string token)
+    public static async Task<bool> ValidateRToken(string token)
     {
         try
         {
-            var handler = new JsonWebTokenHandler();
-
-            var result = handler.ValidateToken(token, new TokenValidationParameters()
+            JsonWebTokenHandler handler = new JsonWebTokenHandler();
+            TokenValidationResult result = await handler.ValidateTokenAsync(token, new TokenValidationParameters()
             {
                 ValidateIssuer = true,
-                ValidateAudience = false,
+                ValidateAudience = true,
                 ValidateIssuerSigningKey = true,
                 ValidIssuer = Settings.Issuer,
                 ValidAudience = Settings.JWTRAudience,
@@ -126,18 +130,18 @@ public class TokenService
 
             return true;
         }
-        catch (System.Exception e)
+        catch (System.Exception)
         {
             return false;
         }
     }
 
-    public static bool ValidateJWTToken(string token)
+    public static async Task<bool> ValidateJWTToken(string token)
     {
         try
         {
-            var handler = new JsonWebTokenHandler();
-            var result = handler.ValidateToken(token, new TokenValidationParameters()
+            JsonWebTokenHandler handler = new JsonWebTokenHandler();
+            TokenValidationResult result = await handler.ValidateTokenAsync(token, new TokenValidationParameters()
             {
                 ValidateIssuer = true,
                 ValidateAudience = true,
