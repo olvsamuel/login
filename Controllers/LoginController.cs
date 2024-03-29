@@ -48,18 +48,27 @@ public class LoginController : ControllerBase
 
         // Check if refresh token is valid - if not, return unauthorized
         if (!await TokenService.ValidateRToken(refreshTokenDTO.RefreshToken))
+        {
+            _logger.LogWarning("Refresh token is not valid");
             return Unauthorized("Refresh token is not valid");
+        }
 
         // If reactivateSession is not null, re-activate the session using the refresh token
         // even if the jwt is expired but the refresh token is still valid
         // Check if JWT token is valid - if not, return bad request
         if (reactivateSession == null && !await TokenService.ValidateJWTToken(jwt))
+        {
+            _logger.LogWarning("JWT token is not valid");
             return BadRequest("JWT token is not valid");
+        }
 
         // Search for session in database based on refresh token
         List<TokenData> session = Tokens.GetTokens(null, 0, null, refreshTokenDTO.RefreshToken);
         if (session == null)
+        {
+            _logger.LogWarning("Session not found");
             return BadRequest("Session not found");
+        }
 
         ClaimsPrincipal principal = TokenService.GetPrincipalFromExpiredToken(jwt);
         string NewToken = TokenService.GenerateTokenByClaims(principal.Claims);
@@ -70,8 +79,15 @@ public class LoginController : ControllerBase
     }
 
     [HttpGet(Name = "GetTokens")]
-    public ActionResult<object> GetTokens() => Tokens.GetTokens();
+    [ResponseCache(Duration = 120)]
+    public ActionResult<object> GetTokens() {
+        _logger.LogInformation("Getting all tokens");
+        return Tokens.GetTokens();
+    }
 
     [HttpGet("TesteRefreshToken", Name = "TesteRefreshToken")]
-    public async Task<ActionResult<bool>> TesteRefreshToken([FromHeader] string refreshToken) => await TokenService.ValidateRToken(refreshToken);
+    public async Task<ActionResult<bool>> TesteRefreshToken([FromHeader] string refreshToken) { 
+        _logger.LogInformation("Testing refresh token: " + refreshToken);
+        return await TokenService.ValidateRToken(refreshToken);
+    }
 }

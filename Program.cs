@@ -1,9 +1,5 @@
 using login.Filters;
 using login.APIBehavior;
-
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -19,6 +15,7 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddControllers(options =>
 {
+    options.Filters.Add(typeof(MyExceptionFilter));
     options.Filters.Add(typeof(ParseBadRequest));
 }).ConfigureApiBehaviorOptions(BadRequestsBehavior.Parse);
 
@@ -73,11 +70,36 @@ builder.Services.AddCors(options => options.AddPolicy("MyPolicy", builder =>
     builder.AllowAnyOrigin()
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .WithExposedHeaders(new string[] { "totalAmountOfRecords" }); //for pagination, if wanted
+            .WithExposedHeaders(["totalAmountOfRecords"]); //for pagination, if wanted
 }));
 
+builder.Services.AddResponseCaching();
 
-WebApplication app = builder.Build();
+
+var app = builder.Build();
+
+app.Use(async (context, next) =>
+{
+    using (var swapStream = new MemoryStream())
+    {
+        var originalResponseBody = context.Response.Body;
+        context.Response.Body = swapStream;
+
+        await next.Invoke();
+
+        swapStream.Seek(0, SeekOrigin.Begin);
+        string responseBody = new StreamReader(swapStream).ReadToEnd();
+        swapStream.Seek(0, SeekOrigin.Begin);
+
+        await swapStream.CopyToAsync(originalResponseBody);
+        context.Response.Body = originalResponseBody;
+
+        ILogger logger = context.RequestServices.GetRequiredService<ILogger<StartupBase>>();
+        
+        logger.LogInformation(responseBody);
+    }
+});
+
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -89,6 +111,8 @@ if (app.Environment.IsDevelopment())
 app.UseCors("MyPolicy");
 
 app.UseHttpsRedirection();
+
+app.UseResponseCaching();
 
 app.UseAuthentication();
 
